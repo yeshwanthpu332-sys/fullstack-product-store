@@ -5,12 +5,12 @@ const router = express.Router();
 
 // GET /categories
 router.get("/", (req, res) => {
-  db.all("SELECT * FROM categories", [], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+  try {
+    const rows = db.prepare("SELECT * FROM categories").all();
     res.json(rows);
-  });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

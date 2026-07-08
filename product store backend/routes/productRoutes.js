@@ -35,19 +35,16 @@ router.get("/", (req, res) => {
 
   const whereSQL = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
-  // Count total items matching filters
-  const countSQL = `
-    SELECT COUNT(*) as count
-    FROM products
-    LEFT JOIN categories ON products.category_id = categories.id
-    ${whereSQL}
-  `;
+  try {
+    // Count total items matching filters
+    const countSQL = `
+      SELECT COUNT(*) as count
+      FROM products
+      LEFT JOIN categories ON products.category_id = categories.id
+      ${whereSQL}
+    `;
 
-  db.get(countSQL, params, (countErr, countRow) => {
-    if (countErr) {
-      return res.status(500).json({ error: countErr.message });
-    }
-
+    const countRow = db.prepare(countSQL).get(params);
     const totalItems = countRow ? countRow.count : 0;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageLimit));
 
@@ -65,46 +62,48 @@ router.get("/", (req, res) => {
       LIMIT ? OFFSET ?
     `;
 
-    const dataParams = params.slice();
-    dataParams.push(pageLimit, offset);
+    const dataParams = [...params, pageLimit, offset];
 
-    db.all(dataSQL, dataParams, (err, rows) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      const formattedRows = rows.map((product) => ({
-        ...product,
-        images: product.images ? JSON.parse(product.images) : []
-      }));
+    const rows = db.prepare(dataSQL).all(dataParams);
 
-      res.json({
-        products: formattedRows,
-        page: pageNum,
-        totalPages,
-        totalItems,
-      });
+    const formattedRows = rows.map((product) => ({
+      ...product,
+      images: product.images ? JSON.parse(product.images) : []
+    }));
+
+    res.json({
+      products: formattedRows,
+      page: pageNum,
+      totalPages,
+      totalItems,
     });
-  });
+
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /products/:id
 router.get("/:id", (req, res) => {
-  const { id } = req.params;
-  db.get(`
-    SELECT products.*, categories.name as category
-    FROM products
-    LEFT JOIN categories ON products.category_id = categories.id
-    WHERE products.id = ?
-  `, [id], (err, row) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+  try {
+    const { id } = req.params;
+    const row = db.prepare(`
+      SELECT products.*, categories.name as category
+      FROM products
+      LEFT JOIN categories ON products.category_id = categories.id
+      WHERE products.id = ?
+    `).get(id);
+
     if (!row) {
       return res.status(404).json({ message: "Product not found" });
     }
+
     row.images = row.images ? JSON.parse(row.images) : [];
     res.json(row);
-  });
+
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

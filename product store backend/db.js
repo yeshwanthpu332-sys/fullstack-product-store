@@ -1,17 +1,11 @@
-import sqlite3 from "sqlite3";
+import Database from "better-sqlite3";
 
-const sqlite = sqlite3.verbose();
+const db = new Database("./products.db");
 
-const db = new sqlite.Database("./products.db", (err) => {
-  if (err) {
-    console.error("Error connecting to database:", err.message);
-  } else {
-    console.log("✅ Connected to SQLite database");
-  }
-});
+console.log("✅ Connected to SQLite database");
 
 // Create categories table
-db.run(`
+db.exec(`
   CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE
@@ -19,7 +13,7 @@ db.run(`
 `);
 
 // Create products table
-db.run(`
+db.exec(`
   CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -34,7 +28,7 @@ db.run(`
 `);
 
 // Users table
-db.run(`
+db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -45,14 +39,16 @@ db.run(`
 `);
 
 // Add role column if table already exists
-db.run(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'`, (err) => {
-  if (err && !err.message.includes("duplicate column")) {
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'`);
+} catch (err) {
+  if (!err.message.includes("duplicate column")) {
     console.error("Error adding role column:", err.message);
   }
-});
+}
 
 // Cart table
-db.run(`
+db.exec(`
   CREATE TABLE IF NOT EXISTS cart (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -64,7 +60,7 @@ db.run(`
 `);
 
 // Wishlist table
-db.run(`
+db.exec(`
   CREATE TABLE IF NOT EXISTS wishlist (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -75,7 +71,7 @@ db.run(`
 `);
 
 // Orders table
-db.run(`
+db.exec(`
   CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -93,7 +89,7 @@ db.run(`
 `);
 
 // Order Items table
-db.run(`
+db.exec(`
   CREATE TABLE IF NOT EXISTS order_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id INTEGER NOT NULL,

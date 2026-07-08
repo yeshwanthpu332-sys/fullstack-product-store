@@ -1,7 +1,6 @@
-import sqlite3 from "sqlite3";
+import Database from "better-sqlite3";
 
-const sqlite = sqlite3.verbose();
-const db = new sqlite.Database("./products.db");
+const db = new Database("./products.db");
 
 const products = [
   {
@@ -176,72 +175,63 @@ const products = [
 
 const uniqueCategories = [...new Set(products.map((p) => p.category))];
 
-db.serialize(() => {
-  // ✅ Drop and recreate tables (resets IDs to 1)
-  db.run("DROP TABLE IF EXISTS products");
-  db.run("DROP TABLE IF EXISTS categories");
+// Drop and recreate tables
+db.exec("DROP TABLE IF EXISTS products");
+db.exec("DROP TABLE IF EXISTS categories");
 
-  db.run(`
-    CREATE TABLE categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE
-    )
-  `);
+db.exec(`
+  CREATE TABLE categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+  )
+`);
 
-  db.run(`
-    CREATE TABLE products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      price INTEGER NOT NULL,
-      category_id INTEGER,
-      rating REAL,
-      image TEXT,
-      images TEXT,
-      description TEXT,
-      FOREIGN KEY (category_id) REFERENCES categories(id)
-    )
-  `);
+db.exec(`
+  CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    price INTEGER NOT NULL,
+    category_id INTEGER,
+    rating REAL,
+    image TEXT,
+    images TEXT,
+    description TEXT,
+    FOREIGN KEY (category_id) REFERENCES categories(id)
+  )
+`);
 
-  const catStmt = db.prepare(
-    "INSERT OR IGNORE INTO categories (name) VALUES (?)"
-  );
-  uniqueCategories.forEach((cat) => catStmt.run([cat]));
-  catStmt.finalize();
+// Insert categories
+const catStmt = db.prepare("INSERT OR IGNORE INTO categories (name) VALUES (?)");
+uniqueCategories.forEach((cat) => catStmt.run(cat));
 
-  db.all("SELECT * FROM categories", [], (err, categories) => {
-    if (err) {
-      console.error(err.message);
-      return;
-    }
+// Get categories
+const categories = db.prepare("SELECT * FROM categories").all();
+console.log("✅ Categories inserted:", categories);
 
-    console.log("✅ Categories inserted:", categories);
-
-    const categoryMap = {};
-    categories.forEach((cat) => {
-      categoryMap[cat.name] = cat.id;
-    });
-
-    const prodStmt = db.prepare(`
-      INSERT INTO products 
-      (name, price, category_id, rating, image, images, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    products.forEach((p) => {
-      prodStmt.run([
-        p.name,
-        p.price,
-        categoryMap[p.category],
-        p.rating,
-        p.image,
-        JSON.stringify(p.images),
-        p.description,
-      ]);
-    });
-
-    prodStmt.finalize(() => {
-      console.log("✅ Products inserted successfully!");
-      db.close();
-    });
-  });
+// Build category map
+const categoryMap = {};
+categories.forEach((cat) => {
+  categoryMap[cat.name] = cat.id;
 });
+
+// Insert products
+const prodStmt = db.prepare(`
+  INSERT INTO products 
+  (name, price, category_id, rating, image, images, description)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
+`);
+
+products.forEach((p) => {
+  prodStmt.run(
+    p.name,
+    p.price,
+    categoryMap[p.category],
+    p.rating,
+    p.image,
+    JSON.stringify(p.images),
+    p.description
+  );
+});
+
+console.log("✅ Products inserted successfully!");
+db.close();
