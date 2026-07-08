@@ -13,7 +13,19 @@ import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 
-app.use(cors());
+// ✅ CORS - Fixed for deployment
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "https://your-user-frontend.vercel.app",
+      "https://your-admin-panel.vercel.app",
+    ],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
 // Routes
@@ -30,7 +42,9 @@ app.get("/", (req, res) => {
   res.send("Product Store Backend Running 🚀");
 });
 
-// Start server
-app.listen(5000, () => {
-  console.log("🚀 Server running on http://localhost:5000");
+// ✅ PORT - Fixed for deployment
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
