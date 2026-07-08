@@ -4,12 +4,16 @@ import { loginUser, registerUser } from "../api/api";
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
+  const isGuestPreview = new URLSearchParams(window.location.search).get("guestPreview") === "true";
+
   const [user, setUser] = useState(() => {
+    if (isGuestPreview) return null;
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
   });
 
   const [token, setToken] = useState(() => {
+    if (isGuestPreview) return null;
     return localStorage.getItem("token") || null;
   });
 
@@ -38,7 +42,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("token");
   };
 
-  const isLoggedIn = !!user;
+  const isLoggedIn = !!user && !isGuestPreview;
 
   return (
     <AuthContext.Provider
@@ -58,4 +62,4 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   return useContext(AuthContext);
-} 
+}

@@ -13,8 +13,8 @@ function Navbar() {
   const { user, isLoggedIn, logout } = useAuth();
 
   useEffect(() => {
-    getProducts()
-      .then((data) => setAllProducts(data))
+    getProducts({ limit: 50 })
+      .then((data) => setAllProducts(data.products || []))
       .catch((err) => console.error(err));
   }, []);
 
@@ -36,7 +36,7 @@ function Navbar() {
     <nav className="bg-gray-900 text-white shadow-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
-
+          {/* Logo */}
           <NavLink to="/" className="flex items-center">
             <img
               src={logo}
@@ -45,14 +45,20 @@ function Navbar() {
             />
           </NavLink>
 
+          {/* Search Bar */}
           <div className="w-full md:w-1/2 relative">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-4 py-3 rounded-full text-black bg-white border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                🔍
+              </span>
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 rounded-full text-black bg-white border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
             {search && (
               <div className="bg-white text-black rounded-md shadow-lg mt-1 absolute w-full z-50">
@@ -61,7 +67,9 @@ function Navbar() {
                     key={product.id}
                     className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                     onClick={() => {
-                      navigate(`/products?search=${encodeURIComponent(product.name)}`);
+                      navigate(
+                        `/products?search=${encodeURIComponent(product.name)}`
+                      );
                       setSearch("");
                     }}
                   >
@@ -72,19 +80,39 @@ function Navbar() {
             )}
           </div>
 
+          {/* Nav Links */}
           <div className="flex gap-6 font-medium items-center">
-            <NavLink to="/products" className={navClass}>Products</NavLink>
+            <NavLink to="/products" className={navClass}>
+              Products
+            </NavLink>
             <NavLink to="/wishlist" className={navClass}>
               <span className="text-xl">♡</span>
             </NavLink>
-            <NavLink to="/cart" className={navClass}>Cart ({totalItems})</NavLink>
 
-            {/* Auth Section */}
+            {/* Cart with Badge */}
+            <NavLink to="/cart" className={navClass}>
+              <div className="relative">
+                <span>Cart</span>
+                {totalItems > 0 && (
+                  <span className="absolute -top-2 -right-4 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                    {totalItems}
+                  </span>
+                )}
+              </div>
+            </NavLink>
+
+            <NavLink to="/orders" className={navClass}>
+              Orders
+            </NavLink>
+
             {isLoggedIn ? (
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-300">
-                  Hi, {user.name}
-                </span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold">
+                    {user.name?.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-sm text-gray-300">{user.name}</span>
+                </div>
                 <button
                   onClick={handleLogout}
                   className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded-md transition"

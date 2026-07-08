@@ -39,9 +39,17 @@ db.run(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL
+    password TEXT NOT NULL,
+    role TEXT DEFAULT 'user'
   )
 `);
+
+// Add role column if table already exists
+db.run(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'`, (err) => {
+  if (err && !err.message.includes("duplicate column")) {
+    console.error("Error adding role column:", err.message);
+  }
+});
 
 // Cart table
 db.run(`
@@ -62,6 +70,37 @@ db.run(`
     user_id INTEGER NOT NULL,
     product_id INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (product_id) REFERENCES products(id)
+  )
+`);
+
+// Orders table
+db.run(`
+  CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    total_amount INTEGER NOT NULL,
+    full_name TEXT NOT NULL,
+    address TEXT NOT NULL,
+    city TEXT NOT NULL,
+    pincode TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    payment_method TEXT DEFAULT 'COD',
+    status TEXT DEFAULT 'Placed',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )
+`);
+
+// Order Items table
+db.run(`
+  CREATE TABLE IF NOT EXISTS order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL,
+    price INTEGER NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id),
     FOREIGN KEY (product_id) REFERENCES products(id)
   )
 `);

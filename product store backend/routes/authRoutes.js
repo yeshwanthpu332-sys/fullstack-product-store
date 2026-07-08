@@ -29,7 +29,7 @@ router.post("/register", async (req, res) => {
         }
 
         const token = jwt.sign(
-          { id: this.lastID, email },
+          { id: this.lastID, email, role: "user" },
           JWT_SECRET,
           { expiresIn: "7d" }
         );
@@ -41,6 +41,7 @@ router.post("/register", async (req, res) => {
             id: this.lastID,
             name,
             email,
+            role: "user",
           },
         });
       }
@@ -70,6 +71,11 @@ router.post("/login", (req, res) => {
         return res.status(400).json({ error: "Invalid email or password" });
       }
 
+      // ✅ Block admin from normal login
+      if (user.role === "admin") {
+        return res.status(403).json({ error: "Please use admin login page" });
+      }
+
       const isMatch = await bcrypt.compare(password, user.password);
 
       if (!isMatch) {
@@ -77,7 +83,7 @@ router.post("/login", (req, res) => {
       }
 
       const token = jwt.sign(
-        { id: user.id, email: user.email },
+        { id: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: "7d" }
       );
@@ -89,6 +95,7 @@ router.post("/login", (req, res) => {
           id: user.id,
           name: user.name,
           email: user.email,
+          role: user.role,
         },
       });
     }

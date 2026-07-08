@@ -8,6 +8,8 @@ import categoryRoutes from "./routes/categoryRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 
@@ -20,6 +22,8 @@ app.use("/categories", categoryRoutes);
 app.use("/auth", authRoutes);
 app.use("/cart", cartRoutes);
 app.use("/wishlist", wishlistRoutes);
+app.use("/orders", orderRoutes);
+app.use("/admin", adminRoutes);
 
 // Root route
 app.get("/", (req, res) => {

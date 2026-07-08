@@ -5,33 +5,41 @@ const API = axios.create({
   timeout: 8000,
 });
 
-// Sends token with every request
 API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const adminToken = localStorage.getItem("adminToken");
+  if (adminToken) {
+    config.headers.Authorization = `Bearer ${adminToken}`;
   }
   return config;
 });
 
-// Products
-export const getProducts = (opts = {}) =>
-  API.get("/products", { params: opts })
+// Admin Auth
+export const adminLoginAPI = (credentials) =>
+  API.post("/admin/login", credentials)
     .then((res) => res.data)
     .catch((err) => {
-      console.error("API Error:", err.response?.data || err.message);
+      console.error("API Error:", err.response?.data?.error || err.message);
       throw err;
     });
 
-export const getProductById = (id) =>
-  API.get(`/products/${id}`)
+// Dashboard
+export const getDashboard = () =>
+  API.get("/admin/dashboard")
     .then((res) => res.data)
     .catch((err) => {
       console.error("API Error:", err.message);
       throw err;
     });
 
-// Categories
+// Products
+export const getProducts = (opts = {}) =>
+  API.get("/products", { params: opts })
+    .then((res) => res.data)
+    .catch((err) => {
+      console.error("API Error:", err.message);
+      throw err;
+    });
+
 export const getCategories = () =>
   API.get("/categories")
     .then((res) => res.data)
@@ -40,91 +48,24 @@ export const getCategories = () =>
       throw err;
     });
 
-// Auth
-export const registerUser = (userData) =>
-  API.post("/auth/register", userData)
-    .then((res) => res.data)
-    .catch((err) => {
-      console.error("API Error:", err.response?.data?.error || err.message);
-      throw err;
-    });
-
-export const loginUser = (userData) =>
-  API.post("/auth/login", userData)
-    .then((res) => res.data)
-    .catch((err) => {
-      console.error("API Error:", err.response?.data?.error || err.message);
-      throw err;
-    });
-
-// Cart
-export const getCart = () =>
-  API.get("/cart")
+export const addProduct = (productData) =>
+  API.post("/admin/products", productData)
     .then((res) => res.data)
     .catch((err) => {
       console.error("API Error:", err.message);
       throw err;
     });
 
-export const addToCartAPI = (product_id) =>
-  API.post("/cart", { product_id })
+export const updateProduct = (id, productData) =>
+  API.put(`/admin/products/${id}`, productData)
     .then((res) => res.data)
     .catch((err) => {
       console.error("API Error:", err.message);
       throw err;
     });
 
-export const increaseCartItem = (product_id) =>
-  API.put(`/cart/increase/${product_id}`)
-    .then((res) => res.data)
-    .catch((err) => {
-      console.error("API Error:", err.message);
-      throw err;
-    });
-
-export const decreaseCartItem = (product_id) =>
-  API.put(`/cart/decrease/${product_id}`)
-    .then((res) => res.data)
-    .catch((err) => {
-      console.error("API Error:", err.message);
-      throw err;
-    });
-
-export const removeCartItem = (product_id) =>
-  API.delete(`/cart/${product_id}`)
-    .then((res) => res.data)
-    .catch((err) => {
-      console.error("API Error:", err.message);
-      throw err;
-    });
-
-export const clearCartAPI = () =>
-  API.delete("/cart")
-    .then((res) => res.data)
-    .catch((err) => {
-      console.error("API Error:", err.message);
-      throw err;
-    });
-
-// Wishlist
-export const getWishlist = () =>
-  API.get("/wishlist")
-    .then((res) => res.data)
-    .catch((err) => {
-      console.error("API Error:", err.message);
-      throw err;
-    });
-
-export const toggleWishlistAPI = (product_id) =>
-  API.post("/wishlist", { product_id })
-    .then((res) => res.data)
-    .catch((err) => {
-      console.error("API Error:", err.message);
-      throw err;
-    });
-
-export const removeWishlistItem = (product_id) =>
-  API.delete(`/wishlist/${product_id}`)
+export const deleteProduct = (id) =>
+  API.delete(`/admin/products/${id}`)
     .then((res) => res.data)
     .catch((err) => {
       console.error("API Error:", err.message);
@@ -132,32 +73,66 @@ export const removeWishlistItem = (product_id) =>
     });
 
 // Orders
-export const placeOrder = (orderData) =>
-  API.post("/orders", orderData)
+export const getAdminOrders = () =>
+  API.get("/admin/orders")
     .then((res) => res.data)
     .catch((err) => {
       console.error("API Error:", err.message);
       throw err;
     });
 
-export const getOrders = () =>
-  API.get("/orders")
+export const updateOrderStatus = (id, status) =>
+  API.put(`/admin/orders/${id}/status`, { status })
     .then((res) => res.data)
     .catch((err) => {
       console.error("API Error:", err.message);
       throw err;
     });
 
-export const getOrderById = (id) =>
-  API.get(`/orders/${id}`)
+// Categories
+export const getAdminCategories = () =>
+  API.get("/admin/categories")
     .then((res) => res.data)
     .catch((err) => {
       console.error("API Error:", err.message);
       throw err;
     });
 
-export const cancelOrder = (id) =>
-  API.put(`/orders/${id}/cancel`)
+export const addCategory = (name) =>
+  API.post("/admin/categories", { name })
+    .then((res) => res.data)
+    .catch((err) => {
+      console.error("API Error:", err.message);
+      throw err;
+    });
+
+export const deleteCategory = (id) =>
+  API.delete(`/admin/categories/${id}`)
+    .then((res) => res.data)
+    .catch((err) => {
+      console.error("API Error:", err.message);
+      throw err;
+    });
+
+// Users
+export const getUsers = () =>
+  API.get("/admin/users")
+    .then((res) => res.data)
+    .catch((err) => {
+      console.error("API Error:", err.message);
+      throw err;
+    });
+
+export const updateUserRole = (id, role) =>
+  API.put(`/admin/users/${id}/role`, { role })
+    .then((res) => res.data)
+    .catch((err) => {
+      console.error("API Error:", err.message);
+      throw err;
+    });
+
+    export const getRevenue = () =>
+  API.get("/admin/revenue")
     .then((res) => res.data)
     .catch((err) => {
       console.error("API Error:", err.message);

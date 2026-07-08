@@ -11,6 +11,9 @@ import About from "./pages/About";
 import Wishlist from "./pages/Wishlist";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Checkout from "./pages/Checkout";
+import OrderSuccess from "./pages/OrderSuccess";
+import MyOrders from "./pages/MyOrders";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -38,6 +41,24 @@ function App() {
           <Route path="/wishlist" element={
             <ProtectedRoute>
               <Wishlist />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/checkout" element={
+            <ProtectedRoute>
+              <Checkout />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/order-success/:id" element={
+            <ProtectedRoute>
+              <OrderSuccess />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/orders" element={
+            <ProtectedRoute>
+              <MyOrders />
             </ProtectedRoute>
           } />
         </Routes>
