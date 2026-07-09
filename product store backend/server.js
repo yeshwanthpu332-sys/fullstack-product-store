@@ -20,7 +20,7 @@ app.use(
       "http://localhost:5173",
       "http://localhost:5174",
       "https://fullstack-product-store-tau.vercel.app",
-      "https://your-admin-panel.vercel.app",
+      "https://fullstack-product-store-3ynu.vercel.app",
     ],
     credentials: true,
   })
