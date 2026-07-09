@@ -19,7 +19,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "http://localhost:5174",
-      "https://your-user-frontend.vercel.app",
+      "https://fullstack-product-store-tau.vercel.app",
       "https://your-admin-panel.vercel.app",
     ],
     credentials: true,
