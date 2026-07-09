@@ -19,6 +19,8 @@ app.use(
     origin: [
       "http://localhost:5173",
       "http://localhost:5174",
+      "http://localhost:5175",
+      "http://localhost:5176",
       "https://fullstack-product-store-tau.vercel.app",
       "https://fullstack-product-store-3ynu.vercel.app",
     ],
