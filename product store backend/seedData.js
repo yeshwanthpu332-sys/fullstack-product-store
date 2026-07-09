@@ -168,3 +168,5 @@ const products = [
     description: "Reusable stainless steel water bottle for daily use.",
   },
 ];
+
+export default products;
