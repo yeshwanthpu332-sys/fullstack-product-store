@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import bcrypt from "bcryptjs";
 import productsData from "./seedData.js";
 
 const db = new Database("./products.db");
@@ -140,6 +141,20 @@ if (productCount === 0) {
   });
 
   console.log("✅ Initial products seeded!");
+}
+
+// ✅ Auto create admin account if not exists
+const adminExists = db.prepare(
+  "SELECT * FROM users WHERE email = ?"
+).get("admin@gmail.com");
+
+if (!adminExists) {
+  console.log("🌱 Creating admin account...");
+  const hashedPassword = bcrypt.hashSync("admin123", 10);
+  db.prepare(
+    "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
+  ).run("Admin", "admin@gmail.com", hashedPassword, "admin");
+  console.log("✅ Admin account created!");
 }
 
 export default db;
