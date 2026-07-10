@@ -23,7 +23,7 @@ function Cart() {
       ) : (
         <div>
           {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-bold">Shopping Cart</h1>
               <p className="text-gray-500 text-sm mt-1">
@@ -33,24 +33,24 @@ function Cart() {
             </div>
             <button
               onClick={clearCart}
-              className="text-sm text-red-500 hover:text-red-700 font-medium transition"
+              className="px-5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 font-semibold rounded-xl border border-red-200 transition"
             >
-              Clear Cart
+               Clear Cart
             </button>
           </div>
 
           {/* Cart Items + Summary */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="flex flex-col lg:flex-row gap-8">
             {/* Cart Items */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="flex-1 space-y-4">
               {cart.map((item) => (
                 <CartItem key={item.id} item={item} />
               ))}
             </div>
 
             {/* Order Summary */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl border border-gray-100 shadow-md p-6 sticky top-24">
+            <div className="w-full lg:w-80">
+              <div className="bg-white rounded-xl border border-gray-100 shadow-md p-6 lg:sticky lg:top-24">
                 <h2 className="text-lg font-bold mb-4">Order Summary</h2>
                 <div className="h-px bg-gray-100 mb-4"></div>
 

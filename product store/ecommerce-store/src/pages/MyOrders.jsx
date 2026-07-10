@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { getOrders, cancelOrder } from "../api/api";
 
 function MyOrders() {
@@ -96,9 +97,10 @@ function MyOrders() {
             <div className="p-6">
               <div className="space-y-4">
                 {order.items?.map((item) => (
-                  <div
+                  <Link
+                    to={`/products/${item.product_id}`}
                     key={item.id}
-                    className="flex items-center justify-between gap-4"
+                    className="flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-gray-50 transition cursor-pointer"
                   >
                     <div className="flex items-center gap-4">
                       <img
@@ -107,7 +109,7 @@ function MyOrders() {
                         className="w-14 h-14 object-contain rounded-lg bg-gray-50"
                       />
                       <div>
-                        <p className="font-medium">{item.name}</p>
+                        <p className="font-medium hover:text-blue-600 transition">{item.name}</p>
                         <p className="text-gray-500 text-sm">
                           Qty: {item.quantity} × ₹{item.price}
                         </p>
@@ -117,7 +119,7 @@ function MyOrders() {
                     <p className="font-semibold">
                       ₹{item.quantity * item.price}
                     </p>
-                  </div>
+                  </Link>
                 ))}
               </div>
 
@@ -136,7 +138,7 @@ function MyOrders() {
               </div>
 
               {/* Cancel Button */}
-              {order.status !== "Cancelled" && (
+              {order.status !== "Cancelled" && order.status !== "Delivered" && (
                 <div className="mt-6 pt-4 border-t border-gray-100">
                   <button
                     onClick={() => handleCancel(order.id)}

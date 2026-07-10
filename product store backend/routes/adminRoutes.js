@@ -65,7 +65,7 @@ router.post("/login", async (req, res) => {
 router.get("/dashboard", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const productsResult = await db.query("SELECT COUNT(*) as count FROM products");
-    const usersResult = await db.query("SELECT COUNT(*) as count FROM users");
+    const usersResult = await db.query("SELECT COUNT(*) as count FROM users WHERE role != 'admin'");
     const ordersResult = await db.query("SELECT COUNT(*) as count FROM orders");
     const revenueResult = await db.query(
       "SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE status != 'Cancelled'"
