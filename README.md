@@ -1,16 +1,34 @@
 # ShopEase
 
-A full-stack e-commerce application built with React and Node.js.
+ShopEase is a full-stack e-commerce application built with React, Node.js, Express, and PostgreSQL.  
 
 ## Features
+
+### User Website
 - Product listing
+- Search products
 - Category filter
-- Search
-- Sorting
+- Price sorting
+- Price range filter
 - Product details page
 - Cart
 - Wishlist
-- User authentication
+- User registration and login
+- Protected routes
+- Checkout
+- Order success page
+- My orders page
+- Cancel order
+
+### Admin Panel
+- Separate admin login
+- Dashboard with stats
+- Manage products
+- Manage categories
+- Manage orders
+- Manage users
+- Revenue page
+- Image upload with ImgBB
 
 ## Tech Stack
 
@@ -24,25 +42,14 @@ A full-stack e-commerce application built with React and Node.js.
 ### Backend
 - Node.js
 - Express
-- SQLite
+- PostgreSQL (Supabase)
 - JWT Authentication
 - Bcrypt
 
-## Getting Started
-
-### Backend
+## Project Structure
 
 ```bash
-cd "product store backend"
-npm install
-node seedProducts.js
-node server.js
-```
-
-### Frontend
-
-```bash
-cd "product store"
-npm install
-npm run dev
-```
+Shopease/
+├── product store/           # User Frontend
+├── product store backend/   # Backend
+└── admin-panel/             # Admin Panel
