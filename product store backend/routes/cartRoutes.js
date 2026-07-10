@@ -5,9 +5,9 @@ import authMiddleware from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 // GET /cart - Get user's cart
-router.get("/", authMiddleware, (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
   try {
-    const rows = db.prepare(`
+    const result = await db.query(`
       SELECT 
         products.id as id,
         cart.quantity,
@@ -20,10 +20,10 @@ router.get("/", authMiddleware, (req, res) => {
       FROM cart
       JOIN products ON cart.product_id = products.id
       LEFT JOIN categories ON products.category_id = categories.id
-      WHERE cart.user_id = ?
-    `).all(req.user.id);
+      WHERE cart.user_id = $1
+    `, [req.user.id]);
 
-    const formattedRows = rows.map((item) => ({
+    const formattedRows = result.rows.map((item) => ({
       ...item,
       images: item.images ? JSON.parse(item.images) : [],
     }));
@@ -35,24 +35,29 @@ router.get("/", authMiddleware, (req, res) => {
 });
 
 // POST /cart - Add item to cart
-router.post("/", authMiddleware, (req, res) => {
+router.post("/", authMiddleware, async (req, res) => {
   const { product_id } = req.body;
   const user_id = req.user.id;
 
   try {
-    const row = db.prepare(
-      "SELECT * FROM cart WHERE user_id = ? AND product_id = ?"
-    ).get(user_id, product_id);
+    const result = await db.query(
+      "SELECT * FROM cart WHERE user_id = $1 AND product_id = $2",
+      [user_id, product_id]
+    );
+
+    const row = result.rows[0];
 
     if (row) {
-      db.prepare(
-        "UPDATE cart SET quantity = quantity + 1 WHERE id = ?"
-      ).run(row.id);
+      await db.query(
+        "UPDATE cart SET quantity = quantity + 1 WHERE id = $1",
+        [row.id]
+      );
       res.json({ message: "✅ Cart item quantity increased" });
     } else {
-      db.prepare(
-        "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, 1)"
-      ).run(user_id, product_id);
+      await db.query(
+        "INSERT INTO cart (user_id, product_id, quantity) VALUES ($1, $2, 1)",
+        [user_id, product_id]
+      );
       res.status(201).json({ message: "✅ Item added to cart" });
     }
   } catch (err) {
@@ -61,14 +66,15 @@ router.post("/", authMiddleware, (req, res) => {
 });
 
 // PUT /cart/increase/:product_id - Increase quantity
-router.put("/increase/:product_id", authMiddleware, (req, res) => {
+router.put("/increase/:product_id", authMiddleware, async (req, res) => {
   const { product_id } = req.params;
   const user_id = req.user.id;
 
   try {
-    db.prepare(
-      "UPDATE cart SET quantity = quantity + 1 WHERE user_id = ? AND product_id = ?"
-    ).run(user_id, product_id);
+    await db.query(
+      "UPDATE cart SET quantity = quantity + 1 WHERE user_id = $1 AND product_id = $2",
+      [user_id, product_id]
+    );
     res.json({ message: "✅ Quantity increased" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -76,24 +82,29 @@ router.put("/increase/:product_id", authMiddleware, (req, res) => {
 });
 
 // PUT /cart/decrease/:product_id - Decrease quantity or remove
-router.put("/decrease/:product_id", authMiddleware, (req, res) => {
+router.put("/decrease/:product_id", authMiddleware, async (req, res) => {
   const { product_id } = req.params;
   const user_id = req.user.id;
 
   try {
-    const row = db.prepare(
-      "SELECT * FROM cart WHERE user_id = ? AND product_id = ?"
-    ).get(user_id, product_id);
+    const result = await db.query(
+      "SELECT * FROM cart WHERE user_id = $1 AND product_id = $2",
+      [user_id, product_id]
+    );
+
+    const row = result.rows[0];
 
     if (row && row.quantity <= 1) {
-      db.prepare(
-        "DELETE FROM cart WHERE user_id = ? AND product_id = ?"
-      ).run(user_id, product_id);
+      await db.query(
+        "DELETE FROM cart WHERE user_id = $1 AND product_id = $2",
+        [user_id, product_id]
+      );
       res.json({ message: "✅ Item removed from cart" });
     } else {
-      db.prepare(
-        "UPDATE cart SET quantity = quantity - 1 WHERE user_id = ? AND product_id = ?"
-      ).run(user_id, product_id);
+      await db.query(
+        "UPDATE cart SET quantity = quantity - 1 WHERE user_id = $1 AND product_id = $2",
+        [user_id, product_id]
+      );
       res.json({ message: "✅ Quantity decreased" });
     }
   } catch (err) {
@@ -102,14 +113,15 @@ router.put("/decrease/:product_id", authMiddleware, (req, res) => {
 });
 
 // DELETE /cart/:product_id - Remove item from cart
-router.delete("/:product_id", authMiddleware, (req, res) => {
+router.delete("/:product_id", authMiddleware, async (req, res) => {
   const { product_id } = req.params;
   const user_id = req.user.id;
 
   try {
-    db.prepare(
-      "DELETE FROM cart WHERE user_id = ? AND product_id = ?"
-    ).run(user_id, product_id);
+    await db.query(
+      "DELETE FROM cart WHERE user_id = $1 AND product_id = $2",
+      [user_id, product_id]
+    );
     res.json({ message: "✅ Item removed from cart" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -117,13 +129,14 @@ router.delete("/:product_id", authMiddleware, (req, res) => {
 });
 
 // DELETE /cart - Clear entire cart
-router.delete("/", authMiddleware, (req, res) => {
+router.delete("/", authMiddleware, async (req, res) => {
   const user_id = req.user.id;
 
   try {
-    db.prepare(
-      "DELETE FROM cart WHERE user_id = ?"
-    ).run(user_id);
+    await db.query(
+      "DELETE FROM cart WHERE user_id = $1",
+      [user_id]
+    );
     res.json({ message: "✅ Cart cleared" });
   } catch (err) {
     res.status(500).json({ error: err.message });

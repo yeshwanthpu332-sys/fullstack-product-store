@@ -17,14 +17,15 @@ router.post("/register", async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const stmt = db.prepare(
-      "INSERT INTO users (name, email, password) VALUES (?, ?, ?)"
+    const result = await db.query(
+      "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id",
+      [name, email, hashedPassword]
     );
 
-    const result = stmt.run(name, email, hashedPassword);
+    const newUser = result.rows[0];
 
     const token = jwt.sign(
-      { id: result.lastInsertRowid, email, role: "user" },
+      { id: newUser.id, email, role: "user" },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -33,7 +34,7 @@ router.post("/register", async (req, res) => {
       message: "✅ User registered successfully!",
       token,
       user: {
-        id: result.lastInsertRowid,
+        id: newUser.id,
         name,
         email,
         role: "user",
@@ -41,7 +42,7 @@ router.post("/register", async (req, res) => {
     });
 
   } catch (err) {
-    if (err.message.includes("UNIQUE constraint failed")) {
+    if (err.message.includes("unique") || err.message.includes("duplicate")) {
       return res.status(400).json({ error: "Email already exists" });
     }
     res.status(500).json({ error: err.message });
@@ -57,9 +58,12 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    const user = db.prepare(
-      "SELECT * FROM users WHERE email = ?"
-    ).get(email);
+    const result = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(400).json({ error: "Invalid email or password" });

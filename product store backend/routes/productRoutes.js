@@ -4,7 +4,7 @@ import db from "../db.js";
 const router = express.Router();
 
 // GET /products
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const { page = 1, limit = 4, category, search, sort, minPrice, maxPrice } = req.query;
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const pageLimit = Math.max(1, parseInt(limit, 10) || 4);
@@ -12,24 +12,25 @@ router.get("/", (req, res) => {
 
   const whereClauses = [];
   const params = [];
+  let paramIndex = 1;
 
   if (category && category !== "All") {
-    whereClauses.push("categories.name = ?");
+    whereClauses.push(`categories.name = $${paramIndex++}`);
     params.push(category);
   }
 
   if (search) {
-    whereClauses.push("products.name LIKE ?");
+    whereClauses.push(`products.name ILIKE $${paramIndex++}`);
     params.push(`%${search}%`);
   }
 
   if (minPrice) {
-    whereClauses.push("products.price >= ?");
+    whereClauses.push(`products.price >= $${paramIndex++}`);
     params.push(parseInt(minPrice));
   }
 
   if (maxPrice) {
-    whereClauses.push("products.price <= ?");
+    whereClauses.push(`products.price <= $${paramIndex++}`);
     params.push(parseInt(maxPrice));
   }
 
@@ -44,8 +45,8 @@ router.get("/", (req, res) => {
       ${whereSQL}
     `;
 
-    const countRow = db.prepare(countSQL).get(params);
-    const totalItems = countRow ? countRow.count : 0;
+    const countResult = await db.query(countSQL, params);
+    const totalItems = parseInt(countResult.rows[0].count);
     const totalPages = Math.max(1, Math.ceil(totalItems / pageLimit));
 
     // Build main query with ordering, limit and offset
@@ -59,14 +60,13 @@ router.get("/", (req, res) => {
       LEFT JOIN categories ON products.category_id = categories.id
       ${whereSQL}
       ${orderSQL}
-      LIMIT ? OFFSET ?
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
 
     const dataParams = [...params, pageLimit, offset];
+    const dataResult = await db.query(dataSQL, dataParams);
 
-    const rows = db.prepare(dataSQL).all(dataParams);
-
-    const formattedRows = rows.map((product) => ({
+    const formattedRows = dataResult.rows.map((product) => ({
       ...product,
       images: product.images ? JSON.parse(product.images) : []
     }));
@@ -84,20 +84,21 @@ router.get("/", (req, res) => {
 });
 
 // GET /products/:id
-router.get("/:id", (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const row = db.prepare(`
+    const result = await db.query(`
       SELECT products.*, categories.name as category
       FROM products
       LEFT JOIN categories ON products.category_id = categories.id
-      WHERE products.id = ?
-    `).get(id);
+      WHERE products.id = $1
+    `, [id]);
 
-    if (!row) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    const row = result.rows[0];
     row.images = row.images ? JSON.parse(row.images) : [];
     res.json(row);
 

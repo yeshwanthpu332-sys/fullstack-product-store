@@ -5,7 +5,7 @@ import authMiddleware from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 // POST /orders - Place new order
-router.post("/", authMiddleware, (req, res) => {
+router.post("/", authMiddleware, async (req, res) => {
   const user_id = req.user.id;
   const { full_name, address, city, pincode, phone } = req.body;
 
@@ -15,12 +15,15 @@ router.post("/", authMiddleware, (req, res) => {
 
   try {
     // Get cart items
-    const cartItems = db.prepare(
+    const cartResult = await db.query(
       `SELECT cart.product_id, cart.quantity, products.price
        FROM cart
        JOIN products ON cart.product_id = products.id
-       WHERE cart.user_id = ?`
-    ).all(user_id);
+       WHERE cart.user_id = $1`,
+      [user_id]
+    );
+
+    const cartItems = cartResult.rows;
 
     if (!cartItems.length) {
       return res.status(400).json({ error: "Cart is empty" });
@@ -33,27 +36,28 @@ router.post("/", authMiddleware, (req, res) => {
     );
 
     // Create order
-    const orderResult = db.prepare(
+    const orderResult = await db.query(
       `INSERT INTO orders (user_id, total_amount, full_name, address, city, pincode, phone, payment_method, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'COD', 'Placed')`
-    ).run(user_id, total_amount, full_name, address, city, pincode, phone);
-
-    const order_id = orderResult.lastInsertRowid;
-
-    // Insert order items
-    const stmt = db.prepare(
-      `INSERT INTO order_items (order_id, product_id, quantity, price)
-       VALUES (?, ?, ?, ?)`
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'COD', 'Placed') RETURNING id`,
+      [user_id, total_amount, full_name, address, city, pincode, phone]
     );
 
-    cartItems.forEach((item) => {
-      stmt.run(order_id, item.product_id, item.quantity, item.price);
-    });
+    const order_id = orderResult.rows[0].id;
+
+    // Insert order items
+    for (const item of cartItems) {
+      await db.query(
+        `INSERT INTO order_items (order_id, product_id, quantity, price)
+         VALUES ($1, $2, $3, $4)`,
+        [order_id, item.product_id, item.quantity, item.price]
+      );
+    }
 
     // Clear cart after order
-    db.prepare(
-      "DELETE FROM cart WHERE user_id = ?"
-    ).run(user_id);
+    await db.query(
+      "DELETE FROM cart WHERE user_id = $1",
+      [user_id]
+    );
 
     res.status(201).json({
       message: "✅ Order placed successfully!",
@@ -67,29 +71,34 @@ router.post("/", authMiddleware, (req, res) => {
 });
 
 // GET /orders - Get user's order history
-router.get("/", authMiddleware, (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
   const user_id = req.user.id;
 
   try {
-    const orders = db.prepare(
-      `SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC`
-    ).all(user_id);
+    const ordersResult = await db.query(
+      `SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
+      [user_id]
+    );
+
+    const orders = ordersResult.rows;
 
     if (!orders.length) {
       return res.json([]);
     }
 
     // Get order items for each order
-    const ordersWithItems = orders.map((order) => {
-      const items = db.prepare(
-        `SELECT order_items.*, products.name, products.image
-         FROM order_items
-         JOIN products ON order_items.product_id = products.id
-         WHERE order_items.order_id = ?`
-      ).all(order.id);
-
-      return { ...order, items };
-    });
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        const itemsResult = await db.query(
+          `SELECT order_items.*, products.name, products.image
+           FROM order_items
+           JOIN products ON order_items.product_id = products.id
+           WHERE order_items.order_id = $1`,
+          [order.id]
+        );
+        return { ...order, items: itemsResult.rows };
+      })
+    );
 
     res.json(ordersWithItems);
 
@@ -99,27 +108,31 @@ router.get("/", authMiddleware, (req, res) => {
 });
 
 // GET /orders/:id - Get single order details
-router.get("/:id", authMiddleware, (req, res) => {
+router.get("/:id", authMiddleware, async (req, res) => {
   const user_id = req.user.id;
   const { id } = req.params;
 
   try {
-    const order = db.prepare(
-      `SELECT * FROM orders WHERE id = ? AND user_id = ?`
-    ).get(id, user_id);
+    const orderResult = await db.query(
+      `SELECT * FROM orders WHERE id = $1 AND user_id = $2`,
+      [id, user_id]
+    );
+
+    const order = orderResult.rows[0];
 
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    const items = db.prepare(
+    const itemsResult = await db.query(
       `SELECT order_items.*, products.name, products.image
        FROM order_items
        JOIN products ON order_items.product_id = products.id
-       WHERE order_items.order_id = ?`
-    ).all(order.id);
+       WHERE order_items.order_id = $1`,
+      [order.id]
+    );
 
-    order.items = items;
+    order.items = itemsResult.rows;
     res.json(order);
 
   } catch (err) {
@@ -128,14 +141,17 @@ router.get("/:id", authMiddleware, (req, res) => {
 });
 
 // PUT /orders/:id/cancel - Cancel order
-router.put("/:id/cancel", authMiddleware, (req, res) => {
+router.put("/:id/cancel", authMiddleware, async (req, res) => {
   const user_id = req.user.id;
   const { id } = req.params;
 
   try {
-    const order = db.prepare(
-      "SELECT * FROM orders WHERE id = ? AND user_id = ?"
-    ).get(id, user_id);
+    const orderResult = await db.query(
+      "SELECT * FROM orders WHERE id = $1 AND user_id = $2",
+      [id, user_id]
+    );
+
+    const order = orderResult.rows[0];
 
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
@@ -145,9 +161,10 @@ router.put("/:id/cancel", authMiddleware, (req, res) => {
       return res.status(400).json({ error: "Order is already cancelled" });
     }
 
-    db.prepare(
-      "UPDATE orders SET status = 'Cancelled' WHERE id = ? AND user_id = ?"
-    ).run(id, user_id);
+    await db.query(
+      "UPDATE orders SET status = 'Cancelled' WHERE id = $1 AND user_id = $2",
+      [id, user_id]
+    );
 
     res.json({ message: "✅ Order cancelled successfully" });
 

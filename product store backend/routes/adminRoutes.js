@@ -18,9 +18,12 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    const user = db.prepare(
-      "SELECT * FROM users WHERE email = ?"
-    ).get(email);
+    const result = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(400).json({ error: "Invalid email or password" });
@@ -59,25 +62,25 @@ router.post("/login", async (req, res) => {
 });
 
 // GET /admin/dashboard
-router.get("/dashboard", authMiddleware, adminMiddleware, (req, res) => {
+router.get("/dashboard", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const products = db.prepare("SELECT COUNT(*) as count FROM products").get();
-    const users = db.prepare("SELECT COUNT(*) as count FROM users").get();
-    const orders = db.prepare("SELECT COUNT(*) as count FROM orders").get();
-    const revenue = db.prepare(
+    const productsResult = await db.query("SELECT COUNT(*) as count FROM products");
+    const usersResult = await db.query("SELECT COUNT(*) as count FROM users");
+    const ordersResult = await db.query("SELECT COUNT(*) as count FROM orders");
+    const revenueResult = await db.query(
       "SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE status != 'Cancelled'"
-    ).get();
+    );
 
-    const recentOrders = db.prepare(
+    const recentOrdersResult = await db.query(
       `SELECT orders.id, orders.total_amount, orders.status, orders.created_at,
               users.name as user_name
        FROM orders
        JOIN users ON orders.user_id = users.id
        ORDER BY orders.created_at DESC
        LIMIT 4`
-    ).all();
+    );
 
-    const topProducts = db.prepare(
+    const topProductsResult = await db.query(
       `SELECT products.id, products.name, products.image, products.price,
               COALESCE(SUM(order_items.quantity), 0) as total_sold
        FROM products
@@ -86,15 +89,15 @@ router.get("/dashboard", authMiddleware, adminMiddleware, (req, res) => {
        GROUP BY products.id
        ORDER BY total_sold DESC
        LIMIT 4`
-    ).all();
+    );
 
     res.json({
-      totalProducts: products.count,
-      totalUsers: users.count,
-      totalOrders: orders.count,
-      totalRevenue: revenue.total,
-      recentOrders: recentOrders || [],
-      topProducts: topProducts || [],
+      totalProducts: productsResult.rows[0].count,
+      totalUsers: usersResult.rows[0].count,
+      totalOrders: ordersResult.rows[0].count,
+      totalRevenue: revenueResult.rows[0].total,
+      recentOrders: recentOrdersResult.rows || [],
+      topProducts: topProductsResult.rows || [],
     });
 
   } catch (err) {
@@ -103,7 +106,7 @@ router.get("/dashboard", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // POST /admin/products - Add new product
-router.post("/products", authMiddleware, adminMiddleware, (req, res) => {
+router.post("/products", authMiddleware, adminMiddleware, async (req, res) => {
   const { name, price, category_id, rating, image, images, description } = req.body;
 
   if (!name || !price || !category_id) {
@@ -111,22 +114,23 @@ router.post("/products", authMiddleware, adminMiddleware, (req, res) => {
   }
 
   try {
-    const result = db.prepare(
+    const result = await db.query(
       `INSERT INTO products (name, price, category_id, rating, image, images, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      name,
-      price,
-      category_id,
-      rating || 0,
-      image || "",
-      JSON.stringify(images || []),
-      description || ""
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [
+        name,
+        price,
+        category_id,
+        rating || 0,
+        image || "",
+        JSON.stringify(images || []),
+        description || ""
+      ]
     );
 
     res.status(201).json({
       message: "✅ Product added successfully!",
-      product_id: result.lastInsertRowid,
+      product_id: result.rows[0].id,
     });
 
   } catch (err) {
@@ -135,24 +139,25 @@ router.post("/products", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // PUT /admin/products/:id - Update product
-router.put("/products/:id", authMiddleware, adminMiddleware, (req, res) => {
+router.put("/products/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   const { name, price, category_id, rating, image, images, description } = req.body;
 
   try {
-    db.prepare(
+    await db.query(
       `UPDATE products 
-       SET name = ?, price = ?, category_id = ?, rating = ?, image = ?, images = ?, description = ?
-       WHERE id = ?`
-    ).run(
-      name,
-      price,
-      category_id,
-      rating,
-      image,
-      JSON.stringify(images || []),
-      description,
-      id
+       SET name = $1, price = $2, category_id = $3, rating = $4, image = $5, images = $6, description = $7
+       WHERE id = $8`,
+      [
+        name,
+        price,
+        category_id,
+        rating,
+        image,
+        JSON.stringify(images || []),
+        description,
+        id
+      ]
     );
 
     res.json({ message: "✅ Product updated successfully!" });
@@ -163,11 +168,11 @@ router.put("/products/:id", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // DELETE /admin/products/:id - Delete product
-router.delete("/products/:id", authMiddleware, adminMiddleware, (req, res) => {
+router.delete("/products/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
 
   try {
-    db.prepare("DELETE FROM products WHERE id = ?").run(id);
+    await db.query("DELETE FROM products WHERE id = $1", [id]);
     res.json({ message: "✅ Product deleted successfully!" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -175,29 +180,33 @@ router.delete("/products/:id", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // GET /admin/orders - Get all orders
-router.get("/orders", authMiddleware, adminMiddleware, (req, res) => {
+router.get("/orders", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const orders = db.prepare(
+    const ordersResult = await db.query(
       `SELECT orders.*, users.name as user_name, users.email as user_email
        FROM orders
        JOIN users ON orders.user_id = users.id
        ORDER BY orders.created_at DESC`
-    ).all();
+    );
+
+    const orders = ordersResult.rows;
 
     if (!orders.length) {
       return res.json([]);
     }
 
-    const ordersWithItems = orders.map((order) => {
-      const items = db.prepare(
-        `SELECT order_items.*, products.name, products.image
-         FROM order_items
-         JOIN products ON order_items.product_id = products.id
-         WHERE order_items.order_id = ?`
-      ).all(order.id);
-
-      return { ...order, items };
-    });
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        const itemsResult = await db.query(
+          `SELECT order_items.*, products.name, products.image
+           FROM order_items
+           JOIN products ON order_items.product_id = products.id
+           WHERE order_items.order_id = $1`,
+          [order.id]
+        );
+        return { ...order, items: itemsResult.rows };
+      })
+    );
 
     res.json(ordersWithItems);
 
@@ -207,7 +216,7 @@ router.get("/orders", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // PUT /admin/orders/:id/status - Update order status
-router.put("/orders/:id/status", authMiddleware, adminMiddleware, (req, res) => {
+router.put("/orders/:id/status", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
@@ -218,9 +227,10 @@ router.put("/orders/:id/status", authMiddleware, adminMiddleware, (req, res) => 
   }
 
   try {
-    db.prepare(
-      "UPDATE orders SET status = ? WHERE id = ?"
-    ).run(status, id);
+    await db.query(
+      "UPDATE orders SET status = $1 WHERE id = $2",
+      [status, id]
+    );
 
     res.json({ message: `✅ Order status updated to ${status}` });
 
@@ -230,18 +240,18 @@ router.put("/orders/:id/status", authMiddleware, adminMiddleware, (req, res) => 
 });
 
 // GET /admin/categories - Get all categories with product count
-router.get("/categories", authMiddleware, adminMiddleware, (req, res) => {
+router.get("/categories", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const rows = db.prepare(
+    const result = await db.query(
       `SELECT categories.id, categories.name,
               COUNT(products.id) as product_count
        FROM categories
        LEFT JOIN products ON categories.id = products.category_id
        GROUP BY categories.id
        ORDER BY categories.id ASC`
-    ).all();
+    );
 
-    res.json(rows);
+    res.json(result.rows);
 
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -249,7 +259,7 @@ router.get("/categories", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // POST /admin/categories - Add new category
-router.post("/categories", authMiddleware, adminMiddleware, (req, res) => {
+router.post("/categories", authMiddleware, adminMiddleware, async (req, res) => {
   const { name } = req.body;
 
   if (!name) {
@@ -257,17 +267,18 @@ router.post("/categories", authMiddleware, adminMiddleware, (req, res) => {
   }
 
   try {
-    const result = db.prepare(
-      "INSERT INTO categories (name) VALUES (?)"
-    ).run(name);
+    const result = await db.query(
+      "INSERT INTO categories (name) VALUES ($1) RETURNING id",
+      [name]
+    );
 
     res.status(201).json({
       message: "✅ Category added successfully!",
-      category_id: result.lastInsertRowid,
+      category_id: result.rows[0].id,
     });
 
   } catch (err) {
-    if (err.message.includes("UNIQUE constraint")) {
+    if (err.message.includes("unique") || err.message.includes("duplicate")) {
       return res.status(400).json({ error: "Category already exists" });
     }
     res.status(500).json({ error: err.message });
@@ -275,11 +286,11 @@ router.post("/categories", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // DELETE /admin/categories/:id - Delete category
-router.delete("/categories/:id", authMiddleware, adminMiddleware, (req, res) => {
+router.delete("/categories/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
 
   try {
-    db.prepare("DELETE FROM categories WHERE id = ?").run(id);
+    await db.query("DELETE FROM categories WHERE id = $1", [id]);
     res.json({ message: "✅ Category deleted successfully!" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -287,13 +298,13 @@ router.delete("/categories/:id", authMiddleware, adminMiddleware, (req, res) => 
 });
 
 // GET /admin/users - Get all users
-router.get("/users", authMiddleware, adminMiddleware, (req, res) => {
+router.get("/users", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const rows = db.prepare(
+    const result = await db.query(
       "SELECT id, name, email, role FROM users"
-    ).all();
+    );
 
-    res.json(rows);
+    res.json(result.rows);
 
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -301,7 +312,7 @@ router.get("/users", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // PUT /admin/users/:id/role - Change user role
-router.put("/users/:id/role", authMiddleware, adminMiddleware, (req, res) => {
+router.put("/users/:id/role", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
 
@@ -310,11 +321,12 @@ router.put("/users/:id/role", authMiddleware, adminMiddleware, (req, res) => {
   }
 
   try {
-    const result = db.prepare(
-      "UPDATE users SET role = ? WHERE id = ?"
-    ).run(role, id);
+    const result = await db.query(
+      "UPDATE users SET role = $1 WHERE id = $2",
+      [role, id]
+    );
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
@@ -326,29 +338,31 @@ router.put("/users/:id/role", authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // GET /admin/revenue - Get revenue details
-router.get("/revenue", authMiddleware, adminMiddleware, (req, res) => {
+router.get("/revenue", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const orders = db.prepare(
+    const ordersResult = await db.query(
       `SELECT orders.id, orders.total_amount, orders.status, orders.created_at,
               users.name as customer_name
        FROM orders
        JOIN users ON orders.user_id = users.id
        WHERE orders.status != 'Cancelled'
        ORDER BY orders.created_at DESC`
-    ).all();
+    );
+
+    const orders = ordersResult.rows;
 
     const totalRevenue = orders.reduce(
       (sum, order) => sum + order.total_amount, 0
     );
 
-    const cancelled = db.prepare(
+    const cancelledResult = await db.query(
       "SELECT COUNT(*) as count FROM orders WHERE status = 'Cancelled'"
-    ).get();
+    );
 
     res.json({
       totalRevenue,
       totalOrders: orders.length,
-      cancelledOrders: cancelled.count,
+      cancelledOrders: cancelledResult.rows[0].count,
       orders,
     });
 

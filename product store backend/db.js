@@ -1,160 +1,157 @@
-import Database from "better-sqlite3";
+import pg from "pg";
 import bcrypt from "bcryptjs";
 import productsData from "./seedData.js";
 
-const db = new Database("./products.db");
+const { Pool } = pg;
 
-console.log("✅ Connected to SQLite database");
+const db = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
 
-// Enable foreign keys
-db.exec("PRAGMA foreign_keys = ON");
+console.log("✅ Connected to PostgreSQL database");
 
-// Create categories table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE
-  )
-`);
+// ✅ Setup function - creates tables and seeds data
+const setup = async () => {
+  try {
+    // Create categories table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE
+      )
+    `);
 
-// Create products table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    price INTEGER NOT NULL,
-    category_id INTEGER,
-    rating REAL,
-    image TEXT,
-    images TEXT,
-    description TEXT,
-    FOREIGN KEY (category_id) REFERENCES categories(id)
-  )
-`);
+    // Create products table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        category_id INTEGER REFERENCES categories(id),
+        rating REAL,
+        image TEXT,
+        images TEXT,
+        description TEXT
+      )
+    `);
 
-// Users table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    role TEXT DEFAULT 'user'
-  )
-`);
+    // Create users table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'user'
+      )
+    `);
 
-// Add role column if table already exists
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'`);
-} catch (err) {
-  if (!err.message.includes("duplicate column")) {
-    console.error("Error adding role column:", err.message);
-  }
-}
+    // Create cart table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS cart (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        product_id INTEGER NOT NULL REFERENCES products(id),
+        quantity INTEGER NOT NULL DEFAULT 1
+      )
+    `);
 
-// Cart table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS cart (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
-    quantity INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (product_id) REFERENCES products(id)
-  )
-`);
+    // Create wishlist table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS wishlist (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        product_id INTEGER NOT NULL REFERENCES products(id)
+      )
+    `);
 
-// Wishlist table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS wishlist (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (product_id) REFERENCES products(id)
-  )
-`);
+    // Create orders table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        total_amount INTEGER NOT NULL,
+        full_name TEXT NOT NULL,
+        address TEXT NOT NULL,
+        city TEXT NOT NULL,
+        pincode TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        payment_method TEXT DEFAULT 'COD',
+        status TEXT DEFAULT 'Placed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-// Orders table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    total_amount INTEGER NOT NULL,
-    full_name TEXT NOT NULL,
-    address TEXT NOT NULL,
-    city TEXT NOT NULL,
-    pincode TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    payment_method TEXT DEFAULT 'COD',
-    status TEXT DEFAULT 'Placed',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  )
-`);
+    // Create order_items table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS order_items (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER NOT NULL REFERENCES orders(id),
+        product_id INTEGER NOT NULL REFERENCES products(id),
+        quantity INTEGER NOT NULL,
+        price INTEGER NOT NULL
+      )
+    `);
 
-// Order Items table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS order_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
-    quantity INTEGER NOT NULL,
-    price INTEGER NOT NULL,
-    FOREIGN KEY (order_id) REFERENCES orders(id),
-    FOREIGN KEY (product_id) REFERENCES products(id)
-  )
-`);
+    // ✅ Auto seed products if empty
+    const productCount = await db.query("SELECT COUNT(*) as count FROM products");
+    const count = parseInt(productCount.rows[0].count);
 
-// ✅ Auto seed if products empty
-const productCount = db.prepare("SELECT COUNT(*) as count FROM products").get().count;
+    if (count === 0) {
+      console.log("🌱 Seeding initial products...");
 
-if (productCount === 0) {
-  console.log("🌱 Seeding initial products...");
+      const uniqueCategories = [...new Set(productsData.map(p => p.category))];
 
-  const uniqueCategories = [...new Set(productsData.map(p => p.category))];
+      for (const cat of uniqueCategories) {
+        await db.query(
+          "INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
+          [cat]
+        );
+      }
 
-  const insertCategory = db.prepare("INSERT OR IGNORE INTO categories (name) VALUES (?)");
-  uniqueCategories.forEach(cat => insertCategory.run(cat));
+      const categoriesResult = await db.query("SELECT * FROM categories");
+      const categoryMap = {};
+      categoriesResult.rows.forEach(cat => {
+        categoryMap[cat.name] = cat.id;
+      });
 
-  const categories = db.prepare("SELECT * FROM categories").all();
-  const categoryMap = {};
-  categories.forEach(cat => {
-    categoryMap[cat.name] = cat.id;
-  });
+      for (const p of productsData) {
+        await db.query(
+          `INSERT INTO products (name, price, category_id, rating, image, images, description)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [p.name, p.price, categoryMap[p.category], p.rating, p.image, JSON.stringify(p.images), p.description]
+        );
+      }
 
-  const insertProduct = db.prepare(`
-    INSERT INTO products (name, price, category_id, rating, image, images, description)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
+      console.log("✅ Initial products seeded!");
+    }
 
-  productsData.forEach(p => {
-    insertProduct.run(
-      p.name,
-      p.price,
-      categoryMap[p.category],
-      p.rating,
-      p.image,
-      JSON.stringify(p.images),
-      p.description
+    // ✅ Auto create admin account if not exists
+    const adminExists = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      ["admin@gmail.com"]
     );
-  });
 
-  console.log("✅ Initial products seeded!");
-}
+    if (adminExists.rows.length === 0) {
+      console.log("🌱 Creating admin account...");
+      const hashedPassword = bcrypt.hashSync("admin123", 10);
+      await db.query(
+        "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4)",
+        ["Admin", "admin@gmail.com", hashedPassword, "admin"]
+      );
+      console.log("✅ Admin account created!");
+    }
 
-// ✅ Auto create admin account if not exists
-const adminExists = db.prepare(
-  "SELECT * FROM users WHERE email = ?"
-).get("admin@gmail.com");
+    console.log("✅ Database setup complete!");
 
-if (!adminExists) {
-  console.log("🌱 Creating admin account...");
-  const hashedPassword = bcrypt.hashSync("admin123", 10);
-  db.prepare(
-    "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
-  ).run("Admin", "admin@gmail.com", hashedPassword, "admin");
-  console.log("✅ Admin account created!");
-}
+  } catch (err) {
+    console.error("❌ Database setup error:", err.message);
+  }
+};
+
+setup();
 
 export default db;
