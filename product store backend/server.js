@@ -23,6 +23,8 @@ app.use(
       "http://localhost:5176",
       "https://fullstack-product-store-tau.vercel.app",
       "https://fullstack-product-store-3ynu.vercel.app",
+      "https://falconrex.com",
+      "https://www.falconrex.com",
     ],
     credentials: true,
   })
