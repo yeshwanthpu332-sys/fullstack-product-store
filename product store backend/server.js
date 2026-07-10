@@ -25,6 +25,7 @@ app.use(
       "https://fullstack-product-store-3ynu.vercel.app",
       "https://falconrex.com",
       "https://www.falconrex.com",
+      "https://admin.falconrex.com",
     ],
     credentials: true,
   })
